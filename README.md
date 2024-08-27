@@ -1,1 +1,1 @@
-# personal-site-content
+# Git-based content workflow for my personal site
