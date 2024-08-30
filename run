@@ -1,0 +1,76 @@
+#!/bin/bash
+
+# Load environment variables from .env file
+if [ -f .env ]; then
+    export $(cat .env | xargs)
+else
+    echo "Error: .env file not found."
+    exit 1
+fi
+
+# Check if ENCRYPTION_KEY is set
+if [ -z "$ENCRYPTION_KEY" ]; then
+    echo "Error: ENCRYPTION_KEY is not set in the .env file."
+    exit 1
+fi
+
+encrypt_file() {
+    local file=$1
+    openssl aes-256-cbc -salt -pbkdf2 -in "$file" -out "$file.enc" -k "$ENCRYPTION_KEY"
+    if [ $? -eq 0 ]; then
+        rm "$file"
+        echo "Encrypted: $file"
+    else
+        echo "Error encrypting: $file"
+    fi
+}
+
+decrypt_file() {
+    local file=$1
+    openssl aes-256-cbc -d -pbkdf2 -in "$file" -out "${file%.enc}" -k "$ENCRYPTION_KEY"
+    if [ $? -eq 0 ]; then
+        rm "$file"
+        echo "Decrypted: $file"
+    else
+        echo "Error decrypting: $file"
+    fi
+}
+
+encrypt_drafts() {
+    find content -type f -name "*.md" | while read -r file; do
+        if grep -q 'is_draft: true' "$file"; then
+            encrypt_file "$file"
+        fi
+    done
+}
+
+decrypt_drafts() {
+    find content -type f -name "*.md.enc" | while read -r file; do
+        decrypt_file "$file"
+    done
+}
+
+check_unencrypted_drafts() {
+    find content -type f -name "*.md" | while read -r file; do
+        if grep -q 'is_draft: true' "$file"; then
+            echo "Unencrypted draft found: $file"
+            exit 1
+        fi
+    done
+}
+
+case "$1" in
+    encrypt)
+        encrypt_drafts
+        ;;
+    decrypt)
+        decrypt_drafts
+        ;;
+    check_unencrypted)
+        check_unencrypted_drafts
+        ;;
+    *)
+        echo "Usage: $0 {encrypt|decrypt|check_unencrypted}"
+        exit 1
+        ;;
+esac

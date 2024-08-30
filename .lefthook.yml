@@ -1,0 +1,14 @@
+pre-commit:
+  parallel: true
+  scripts:
+    shellcheck:
+      glob: "*.sh"
+      run: shellcheck {staged_files}
+  commands:
+    encrypt_drafts:
+      run: ./run check_unencrypted
+
+pre-push:
+  commands:
+    check_encrypted_drafts:
+      run: ./run encrypt
