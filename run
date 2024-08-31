@@ -2,7 +2,7 @@
 
 # Load environment variables from .env file
 if [ -f .env ]; then
-    export $(cat .env | xargs)
+    export "$(xargs < .env)"
 else
     echo "Error: .env file not found."
     exit 1
@@ -16,8 +16,7 @@ fi
 
 encrypt_file() {
     local file=$1
-    openssl aes-256-cbc -salt -pbkdf2 -in "$file" -out "$file.enc" -k "$ENCRYPTION_KEY"
-    if [ $? -eq 0 ]; then
+    if openssl aes-256-cbc -salt -pbkdf2 -in "$file" -out "$file.enc" -k "$ENCRYPTION_KEY"; then  # SC2181 fixed
         rm "$file"
         echo "Encrypted: $file"
     else
@@ -27,8 +26,7 @@ encrypt_file() {
 
 decrypt_file() {
     local file=$1
-    openssl aes-256-cbc -d -pbkdf2 -in "$file" -out "${file%.enc}" -k "$ENCRYPTION_KEY"
-    if [ $? -eq 0 ]; then
+    if openssl aes-256-cbc -d -pbkdf2 -in "$file" -out "${file%.enc}" -k "$ENCRYPTION_KEY"; then  # SC2181 fixed
         rm "$file"
         echo "Decrypted: $file"
     else
