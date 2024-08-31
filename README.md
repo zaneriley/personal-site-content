@@ -1,12 +1,8 @@
 # Case Studies and Notes for Zane Riley's Product Design Portfolio
 
-## Introduction
-
 This repository contains the case studies and notes for my product design portfolio. It's a companion to my [main portfolio repository](https://github.com/zaneriley/personal-site), which houses the actual website code, and [the gitops infra](https://github.com/zaneriley/personal-site-infra) that deploys it.
 
-## Purpose
-
-I created this separate repository to Keep my content separate from the website code. In the past, updating my portfolio has a huge pain because it required extracting old content and integrating it into the new design. I hope to keep and preserve published content here, separate from the actual display. 
+This is to keep my content separate from the application code. In the past, updating my portfolio has a huge pain because it required extracting old content and integrating it into the new design. I hope to keep and preserve published content here, separate from the actual display of the content. 
 
 ## Features
 
@@ -14,7 +10,6 @@ I created this separate repository to Keep my content separate from the website 
 - Decryption of files for editing
 - Pre-commit hook to ensure drafts are encrypted
 - Pre-push hook to prevent pushing unencrypted drafts
-- Simple command-line interface for encryption and decryption operations
 
 ## Content Structure
 
