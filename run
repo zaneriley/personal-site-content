@@ -35,7 +35,7 @@ decrypt_file() {
 }
 
 encrypt_drafts() {
-    find content -type f -name "*.md" | while read -r file; do
+    find . -mindepth 2 -type f -name "*.md" | while read -r file; do
         if grep -q 'is_draft: true' "$file"; then
             encrypt_file "$file"
         fi
@@ -43,13 +43,13 @@ encrypt_drafts() {
 }
 
 decrypt_drafts() {
-    find content -type f -name "*.md.enc" | while read -r file; do
+    find . -mindepth 2 -type f -name "*.md.enc" | while read -r file; do
         decrypt_file "$file"
     done
 }
 
 check_unencrypted_drafts() {
-    find content -type f -name "*.md" | while read -r file; do
+    find . -mindepth 2 -type f -name "*.md" | while read -r file; do
         if grep -q 'is_draft: true' "$file"; then
             echo "Unencrypted draft found: $file"
             exit 1
