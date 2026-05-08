@@ -1,18 +1,25 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-# Load environment variables from .env file
-if [ -f .env ]; then
-    export "$(xargs < .env)"
-else
-    echo "Error: .env file not found."
-    exit 1
-fi
+set -o errexit
+set -o pipefail
 
-# Check if ENCRYPTION_KEY is set
-if [ -z "$ENCRYPTION_KEY" ]; then
-    echo "Error: ENCRYPTION_KEY is not set in the .env file."
-    exit 1
-fi
+load_environment() {
+    if [ -f .env ]; then
+        set -o allexport
+        # shellcheck disable=SC1091
+        . .env
+        set +o allexport
+    fi
+}
+
+require_encryption_key() {
+    load_environment
+
+    if [ -z "${ENCRYPTION_KEY:-}" ]; then
+        echo "Error: ENCRYPTION_KEY is not set. Add it to .env before encrypting or decrypting drafts."
+        exit 1
+    fi
+}
 
 encrypt_file() {
     local file=$1
@@ -59,9 +66,11 @@ check_unencrypted_drafts() {
 
 case "$1" in
     encrypt)
+        require_encryption_key
         encrypt_drafts
         ;;
     decrypt)
+        require_encryption_key
         decrypt_drafts
         ;;
     check_unencrypted)
