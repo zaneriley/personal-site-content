@@ -45,7 +45,7 @@ This is to keep my content separate from the application code. In the past, upda
 
 - Check for unencrypted drafts:
   ```
-  ./run check
+  ./run check_unencrypted
   ```
 
 ## Security Considerations

@@ -15,6 +15,7 @@ Thumbs.db
 # Ignore temporary files
 *.tmp
 *.swp
+.tmp/
 
 # Ignore coverage reports
 coverage/
