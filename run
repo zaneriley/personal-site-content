@@ -64,7 +64,58 @@ check_unencrypted_drafts() {
     done
 }
 
-case "$1" in
+repo_ref() {
+    local repo_path=$1
+
+    git -C "$repo_path" rev-parse --short=12 HEAD 2>/dev/null || printf "unknown"
+}
+
+ci_validate() {
+    local app_path=${1:-}
+    local content_path
+    local app_ref
+    local content_ref
+
+    if [ -z "$app_path" ]; then
+        echo "Usage: $0 ci:validate /path/to/personal-site"
+        exit 1
+    fi
+
+    if [ ! -d "$app_path" ]; then
+        echo "Portfolio app path does not exist or is not a directory: $app_path"
+        exit 1
+    fi
+
+    app_path="$(cd "$app_path" && pwd -P)"
+    content_path="$(pwd -P)"
+
+    if [ ! -x "$app_path/run" ]; then
+        echo "Portfolio app run command is not executable: $app_path/run"
+        exit 1
+    fi
+
+    content_ref="$(repo_ref "$content_path")"
+    app_ref="$(repo_ref "$app_path")"
+
+    echo "Validating content commit $content_ref against personal-site commit $app_ref"
+
+    check_unencrypted_drafts
+
+    (
+        cd "$app_path"
+        ./run ci:setup-env
+        ./run ci:content-validate "$content_path"
+    )
+}
+
+if [ "$#" -gt 0 ]; then
+    command=$1
+    shift
+else
+    command=""
+fi
+
+case "$command" in
     encrypt)
         require_encryption_key
         encrypt_drafts
@@ -76,8 +127,11 @@ case "$1" in
     check_unencrypted)
         check_unencrypted_drafts
         ;;
+    ci:validate)
+        ci_validate "$@"
+        ;;
     *)
-        echo "Usage: $0 {encrypt|decrypt|check_unencrypted}"
+        echo "Usage: $0 {encrypt|decrypt|check_unencrypted|ci:validate}"
         exit 1
         ;;
 esac

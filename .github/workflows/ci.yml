@@ -25,17 +25,9 @@ jobs:
           repository: zaneriley/personal-site
           path: app
 
-      - name: Check unencrypted drafts
+      - name: Validate content for publishing
         working-directory: content
-        run: ./run check_unencrypted
-
-      - name: Prepare portfolio app
-        working-directory: app
-        run: ./run ci:setup-env
-
-      - name: Validate publishable content
-        working-directory: app
-        run: ./run content:validate "$GITHUB_WORKSPACE/content"
+        run: ./run ci:validate "$GITHUB_WORKSPACE/app"
 
   shellcheck:
     name: ShellCheck
