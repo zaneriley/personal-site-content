@@ -147,6 +147,19 @@ ci_validate() {
     )
 }
 
+app_content_validate() {
+    local app_path=$1
+    local content_path
+
+    content_path="$(pwd -P)"
+
+    (
+        cd "$app_path"
+        ./run ci:setup-env
+        ./run ci:content-validate "$content_path"
+    )
+}
+
 run_lefthook() {
     if command -v lefthook >/dev/null 2>&1; then
         lefthook "$@"
@@ -181,7 +194,7 @@ lint_shell() {
 }
 
 write_draft_safety_fixture() {
-    DRAFT_SAFETY_FIXTURE_DIR=".tmp/draft-safety-fixture"
+    DRAFT_SAFETY_FIXTURE_DIR="notes/draft-safety-fixture"
 
     unstage_draft_safety_fixture
     rm -rf "$DRAFT_SAFETY_FIXTURE_DIR"
@@ -238,12 +251,13 @@ expect_failure_containing() {
 
 ci_draft_safety() {
     local app_path=${1:-}
-    local fixture_path=".tmp/draft-safety-fixture/plaintext-draft.md"
-    local titlecase_fixture_path=".tmp/draft-safety-fixture/plaintext-draft-titlecase.md"
-    local uppercase_fixture_path=".tmp/draft-safety-fixture/plaintext-draft-uppercase.md"
-    local double_quoted_fixture_path=".tmp/draft-safety-fixture/plaintext-draft-double-quoted.md"
-    local single_quoted_fixture_path=".tmp/draft-safety-fixture/plaintext-draft-single-quoted.md"
+    local fixture_path="notes/draft-safety-fixture/plaintext-draft.md"
+    local titlecase_fixture_path="notes/draft-safety-fixture/plaintext-draft-titlecase.md"
+    local uppercase_fixture_path="notes/draft-safety-fixture/plaintext-draft-uppercase.md"
+    local double_quoted_fixture_path="notes/draft-safety-fixture/plaintext-draft-double-quoted.md"
+    local single_quoted_fixture_path="notes/draft-safety-fixture/plaintext-draft-single-quoted.md"
     local expected_message="Unencrypted draft found: ${fixture_path}"
+    local app_validator_message="${fixture_path}: unencrypted draft"
 
     if [ -z "$app_path" ]; then
         echo "Usage: $0 ci:draft-safety /path/to/personal-site"
@@ -301,6 +315,11 @@ ci_draft_safety() {
         "./run ci:validate" \
         "$expected_message" \
         ./run ci:validate "$app_path"
+
+    expect_failure_containing \
+        "./run ci:content-validate direct app validator" \
+        "$app_validator_message" \
+        app_content_validate "$app_path"
 }
 
 write_plaintext_draft_fixture() {
