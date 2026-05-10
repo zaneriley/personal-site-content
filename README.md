@@ -8,8 +8,8 @@ This is to keep my content separate from the application code. In the past, upda
 
 - Automatic encryption of draft files
 - Decryption of files for editing
-- Pre-commit hook to ensure drafts are encrypted
-- Pre-push hook to prevent pushing unencrypted drafts
+- Pre-commit and pre-push checks for unencrypted drafts
+- CI validation against the portfolio app before content can publish
 
 ## Content Structure
 
@@ -29,7 +29,7 @@ This is to keep my content separate from the application code. In the past, upda
 
 3. Commit your changes. Drafts will be automatically encrypted.
 
-4. Push your changes. The pre-push hook will ensure all drafts are encrypted.
+4. Push your changes. The pre-push hook blocks if any `is_draft: true` Markdown is still unencrypted.
 
 ### Available Commands
 
@@ -48,11 +48,23 @@ This is to keep my content separate from the application code. In the past, upda
   ./run check_unencrypted
   ```
 
+- Validate this content tree against the portfolio app:
+  ```
+  ./run ci:validate /path/to/personal-site
+  ```
+
+## Publishing Safety
+
+Local hooks are authoring guardrails. They catch unencrypted drafts before push, but they are not the remote guarantee.
+
+CI is the publishing boundary. Content validation checks for unencrypted drafts and asks the portfolio app whether the current content tree can parse, validate, compile, and publish. Bad content should fail in the content repo before the production webhook ever sees it.
+
 ## Security Considerations
 
 - The encryption uses OpenSSL's AES-256-CBC with PBKDF2 for key derivation.
 - The encryption key is stored in a `.env` file, which is not committed to the repository.
-- Pre-commit and pre-push hooks ensure that drafts are always encrypted before being pushed to the remote repository.
+- Pre-commit and pre-push hooks block unencrypted draft Markdown before push.
+- CI repeats the draft-safety check so the remote repository can be made public without relying only on local hook installation.
 
 ## Setup
 
