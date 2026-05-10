@@ -1,14 +1,13 @@
 pre-commit:
   parallel: true
-  scripts:
-    shellcheck:
-      glob: "*.sh"
-      run: shellcheck {staged_files}
   commands:
+    shellcheck:
+      run: ./run lint:shell
     check_unencrypted_drafts:
       run: ./run check_unencrypted
 
 pre-push:
   commands:
     check_encrypted_drafts:
-      run: ./run check_unencrypted
+      files: find . -mindepth 2 -type f -name "*.md" -not -path "./.git/*"
+      run: ./run check_unencrypted {files}

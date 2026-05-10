@@ -3,6 +3,9 @@
 set -o errexit
 set -o pipefail
 
+LEFTHOOK_NPX_PACKAGE="${LEFTHOOK_NPX_PACKAGE:-lefthook@2.1.6}"
+DRAFT_SAFETY_FIXTURE_DIR=""
+
 load_environment() {
     if [ -f .env ]; then
         set -o allexport
@@ -10,6 +13,22 @@ load_environment() {
         . .env
         set +o allexport
     fi
+}
+
+markdown_files() {
+    find . \
+        -mindepth 2 \
+        -type f \
+        -name "*.md" \
+        ! -path "./.git/*" \
+        -print0 \
+        | LC_ALL=C sort -z
+}
+
+is_plaintext_draft() {
+    local file=$1
+
+    grep -Eiq '^[[:space:]]*is_draft:[[:space:]]*['\''"]?true['\''"]?[[:space:]]*(#.*)?$' "$file"
 }
 
 require_encryption_key() {
@@ -28,6 +47,7 @@ encrypt_file() {
         echo "Encrypted: $file"
     else
         echo "Error encrypting: $file"
+        return 1
     fi
 }
 
@@ -38,15 +58,18 @@ decrypt_file() {
         echo "Decrypted: $file"
     else
         echo "Error decrypting: $file"
+        return 1
     fi
 }
 
 encrypt_drafts() {
-    find . -mindepth 2 -type f -name "*.md" | while read -r file; do
-        if grep -q 'is_draft: true' "$file"; then
+    local file
+
+    while IFS= read -r -d "" file; do
+        if is_plaintext_draft "$file"; then
             encrypt_file "$file"
         fi
-    done
+    done < <(markdown_files)
 }
 
 decrypt_drafts() {
@@ -56,18 +79,34 @@ decrypt_drafts() {
 }
 
 check_unencrypted_drafts() {
-    find . -mindepth 2 -type f -name "*.md" | while read -r file; do
-        if grep -q 'is_draft: true' "$file"; then
-            echo "Unencrypted draft found: $file"
-            exit 1
+    local file
+    local found=0
+    local relative_path
+
+    while IFS= read -r -d "" file; do
+        if is_plaintext_draft "$file"; then
+            relative_path="${file#./}"
+            echo "Unencrypted draft found: ${relative_path}"
+            found=1
         fi
-    done
+    done < <(markdown_files)
+
+    if [ "$found" -eq 1 ]; then
+        return 1
+    fi
 }
 
 repo_ref() {
     local repo_path=$1
+    local ref
 
-    git -C "$repo_path" rev-parse --short=12 HEAD 2>/dev/null || printf "unknown"
+    ref="$(git -C "$repo_path" rev-parse --short=12 HEAD 2>/dev/null || printf "unknown")"
+
+    if [ "$ref" != "unknown" ] && [ -n "$(git -C "$repo_path" status --porcelain)" ]; then
+        printf "%s-dirty" "$ref"
+    else
+        printf "%s" "$ref"
+    fi
 }
 
 ci_validate() {
@@ -108,6 +147,176 @@ ci_validate() {
     )
 }
 
+run_lefthook() {
+    if command -v lefthook >/dev/null 2>&1; then
+        lefthook "$@"
+        return
+    fi
+
+    if command -v npx >/dev/null 2>&1; then
+        npx --yes "$LEFTHOOK_NPX_PACKAGE" "$@"
+        return
+    fi
+
+    echo "lefthook is not installed and npx is unavailable"
+    return 1
+}
+
+lint_shell() {
+    if command -v shellcheck >/dev/null 2>&1; then
+        shellcheck run
+        return
+    fi
+
+    if command -v docker >/dev/null 2>&1; then
+        docker container run --rm \
+            -v "${PWD}:/mnt" \
+            -w /mnt \
+            koalaman/shellcheck:stable run
+        return
+    fi
+
+    echo "shellcheck is not installed and docker is unavailable"
+    return 1
+}
+
+write_draft_safety_fixture() {
+    DRAFT_SAFETY_FIXTURE_DIR=".tmp/draft-safety-fixture"
+
+    unstage_draft_safety_fixture
+    rm -rf "$DRAFT_SAFETY_FIXTURE_DIR"
+    mkdir -p "$DRAFT_SAFETY_FIXTURE_DIR"
+
+    write_plaintext_draft_fixture "plaintext-draft.md" "true"
+    write_plaintext_draft_fixture "plaintext-draft-titlecase.md" "True"
+    write_plaintext_draft_fixture "plaintext-draft-uppercase.md" "TRUE"
+    write_plaintext_draft_fixture "plaintext-draft-double-quoted.md" '"true"'
+    write_plaintext_draft_fixture "plaintext-draft-single-quoted.md" "'true'"
+}
+
+cleanup_draft_safety_fixture() {
+    if [ -n "$DRAFT_SAFETY_FIXTURE_DIR" ]; then
+        unstage_draft_safety_fixture
+        rm -rf "$DRAFT_SAFETY_FIXTURE_DIR"
+    fi
+}
+
+unstage_draft_safety_fixture() {
+    if [ -n "$DRAFT_SAFETY_FIXTURE_DIR" ] && git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        git rm --cached --quiet --ignore-unmatch "$DRAFT_SAFETY_FIXTURE_DIR"/*.md 2>/dev/null || true
+    fi
+}
+
+expect_failure_containing() {
+    local label=$1
+    local expected=$2
+    local output
+
+    shift 2
+
+    if output="$("$@" 2>&1)"; then
+        echo "${label} unexpectedly passed"
+        if [ -n "$output" ]; then
+            printf "%s\n" "$output"
+        fi
+        return 1
+    fi
+
+    case "$output" in
+        *"$expected"*)
+            echo "${label} blocked plaintext draft: ${expected}"
+            ;;
+        *)
+            echo "${label} failed, but did not print expected message: ${expected}"
+            if [ -n "$output" ]; then
+                printf "%s\n" "$output"
+            fi
+            return 1
+            ;;
+    esac
+}
+
+ci_draft_safety() {
+    local app_path=${1:-}
+    local fixture_path=".tmp/draft-safety-fixture/plaintext-draft.md"
+    local titlecase_fixture_path=".tmp/draft-safety-fixture/plaintext-draft-titlecase.md"
+    local uppercase_fixture_path=".tmp/draft-safety-fixture/plaintext-draft-uppercase.md"
+    local double_quoted_fixture_path=".tmp/draft-safety-fixture/plaintext-draft-double-quoted.md"
+    local single_quoted_fixture_path=".tmp/draft-safety-fixture/plaintext-draft-single-quoted.md"
+    local expected_message="Unencrypted draft found: ${fixture_path}"
+
+    if [ -z "$app_path" ]; then
+        echo "Usage: $0 ci:draft-safety /path/to/personal-site"
+        exit 1
+    fi
+
+    if [ ! -d "$app_path" ]; then
+        echo "Portfolio app path does not exist or is not a directory: $app_path"
+        exit 1
+    fi
+
+    trap cleanup_draft_safety_fixture EXIT
+    write_draft_safety_fixture
+
+    expect_failure_containing \
+        "./run check_unencrypted" \
+        "$expected_message" \
+        ./run check_unencrypted
+
+    expect_failure_containing \
+        "./run check_unencrypted titlecase YAML bool" \
+        "Unencrypted draft found: ${titlecase_fixture_path}" \
+        ./run check_unencrypted
+
+    expect_failure_containing \
+        "./run check_unencrypted uppercase YAML bool" \
+        "Unencrypted draft found: ${uppercase_fixture_path}" \
+        ./run check_unencrypted
+
+    expect_failure_containing \
+        "./run check_unencrypted double-quoted true" \
+        "Unencrypted draft found: ${double_quoted_fixture_path}" \
+        ./run check_unencrypted
+
+    expect_failure_containing \
+        "./run check_unencrypted single-quoted true" \
+        "Unencrypted draft found: ${single_quoted_fixture_path}" \
+        ./run check_unencrypted
+
+    git add -f "$fixture_path"
+
+    expect_failure_containing \
+        "lefthook run pre-commit" \
+        "$expected_message" \
+        run_lefthook run pre-commit
+
+    expect_failure_containing \
+        "lefthook run pre-push" \
+        "$expected_message" \
+        run_lefthook run pre-push
+
+    write_draft_safety_fixture
+
+    expect_failure_containing \
+        "./run ci:validate" \
+        "$expected_message" \
+        ./run ci:validate "$app_path"
+}
+
+write_plaintext_draft_fixture() {
+    local file_name=$1
+    local draft_value=$2
+
+    {
+        printf "%s\n" "---"
+        printf "%s\n" "title: Plaintext Draft Fixture"
+        printf "%s\n" "is_draft: ${draft_value}"
+        printf "%s\n" "---"
+        printf "%s\n" ""
+        printf "%s\n" "This fixture must never pass draft-safety checks."
+    } > "${DRAFT_SAFETY_FIXTURE_DIR}/${file_name}"
+}
+
 if [ "$#" -gt 0 ]; then
     command=$1
     shift
@@ -127,11 +336,20 @@ case "$command" in
     check_unencrypted)
         check_unencrypted_drafts
         ;;
+    lint:shell)
+        lint_shell
+        ;;
+    ci:lint)
+        lint_shell
+        ;;
+    ci:draft-safety)
+        ci_draft_safety "$@"
+        ;;
     ci:validate)
         ci_validate "$@"
         ;;
     *)
-        echo "Usage: $0 {encrypt|decrypt|check_unencrypted|ci:validate}"
+        echo "Usage: $0 {encrypt|decrypt|check_unencrypted|lint:shell|ci:lint|ci:draft-safety|ci:validate}"
         exit 1
         ;;
 esac

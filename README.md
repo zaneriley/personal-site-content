@@ -6,7 +6,7 @@ This is to keep my content separate from the application code. In the past, upda
 
 ## Features
 
-- Automatic encryption of draft files
+- Encryption and decryption helpers for draft files
 - Decryption of files for editing
 - Pre-commit and pre-push checks for unencrypted drafts
 - CI validation against the portfolio app before content can publish
@@ -27,9 +27,12 @@ This is to keep my content separate from the application code. In the past, upda
 
 2. Edit your content files. Mark drafts with `is_draft: true` in the frontmatter.
 
-3. Commit your changes. Drafts will be automatically encrypted.
+3. Encrypt drafts before committing:
+   ```
+   ./run encrypt
+   ```
 
-4. Push your changes. The pre-push hook blocks if any `is_draft: true` Markdown is still unencrypted.
+4. Commit and push your changes. The pre-commit and pre-push hooks block if any `is_draft: true` Markdown is still unencrypted.
 
 ### Available Commands
 
@@ -48,6 +51,11 @@ This is to keep my content separate from the application code. In the past, upda
   ./run check_unencrypted
   ```
 
+- Prove the scanner, pre-push hook wiring, and CI validation command all block plaintext drafts:
+  ```
+  ./run ci:draft-safety /path/to/personal-site
+  ```
+
 - Validate this content tree against the portfolio app:
   ```
   ./run ci:validate /path/to/personal-site
@@ -58,6 +66,12 @@ This is to keep my content separate from the application code. In the past, upda
 Local hooks are authoring guardrails. They catch unencrypted drafts before push, but they are not the remote guarantee.
 
 CI is the publishing boundary. Content validation checks for unencrypted drafts and asks the portfolio app whether the current content tree can parse, validate, compile, and publish. Bad content should fail in the content repo before the production webhook ever sees it.
+
+## Renames
+
+When renaming a published note or case study, add the old slug to the new file's `aliases:` frontmatter. The portfolio app uses that explicit signal to 301-redirect the old URL to the new canonical URL. A pure deletion without an alias keeps the app's hard-404 behavior.
+
+Alias conflicts fail validation. Two live files of the same content type cannot claim the same alias, and an alias cannot conflict with another live canonical slug.
 
 ## Security Considerations
 

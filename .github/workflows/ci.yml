@@ -25,6 +25,10 @@ jobs:
           repository: zaneriley/personal-site
           path: app
 
+      - name: Prove draft-safety guardrails
+        working-directory: content
+        run: ./run ci:draft-safety "$GITHUB_WORKSPACE/app"
+
       - name: Validate content for publishing
         working-directory: content
         run: ./run ci:validate "$GITHUB_WORKSPACE/app"
@@ -36,10 +40,5 @@ jobs:
       - name: Checkout content
         uses: actions/checkout@v6
 
-      - name: Install ShellCheck
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y shellcheck
-
       - name: Run ShellCheck
-        run: shellcheck run
+        run: ./run ci:lint
