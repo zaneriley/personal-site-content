@@ -25,17 +25,13 @@ jobs:
           repository: zaneriley/personal-site
           path: app
 
-      - name: Check unencrypted drafts
+      - name: Prove draft-safety guardrails
         working-directory: content
-        run: ./run check_unencrypted
+        run: ./run ci:draft-safety "$GITHUB_WORKSPACE/app"
 
-      - name: Prepare portfolio app
-        working-directory: app
-        run: ./run ci:setup-env
-
-      - name: Validate publishable content
-        working-directory: app
-        run: ./run content:validate "$GITHUB_WORKSPACE/content"
+      - name: Validate content for publishing
+        working-directory: content
+        run: ./run ci:validate "$GITHUB_WORKSPACE/app"
 
   shellcheck:
     name: ShellCheck
@@ -44,10 +40,5 @@ jobs:
       - name: Checkout content
         uses: actions/checkout@v6
 
-      - name: Install ShellCheck
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y shellcheck
-
       - name: Run ShellCheck
-        run: shellcheck run
+        run: ./run ci:lint
