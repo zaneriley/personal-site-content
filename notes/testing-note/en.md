@@ -86,3 +86,5 @@ int main() {
     return 0;
 }
 ```
+
+Publication proof: this sentence exists only to prove that an ordinary content edit can pass the content repo checks and merge through the protected branch.
