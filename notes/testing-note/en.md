@@ -88,3 +88,5 @@ int main() {
 ```
 
 Publication proof: this sentence exists only to prove that an ordinary content edit can pass the content repo checks and merge through the protected branch.
+
+Verdict proof: this sentence exists only to prove that a publishable Markdown edit gets an accepted author-facing verdict.
