@@ -67,6 +67,12 @@ Local hooks are authoring guardrails. They catch unencrypted drafts before push,
 
 CI is the publishing boundary. Content validation checks for unencrypted drafts and asks the portfolio app whether the current content tree can parse, validate, compile, and publish. Bad content should fail in the content repo before the production webhook ever sees it.
 
+The `Content publication verdict` status is the author-facing summary:
+
+- `accepted` means the content would publish, but it does not claim the live site changed until there is a live origin.
+- `rejected` names the file and validation reason.
+- `ignored` means the PR changed no publishable Markdown.
+
 ## Renames
 
 When renaming a published note or case study, add the old slug to the new file's `aliases:` frontmatter. The portfolio app uses that explicit signal to 301-redirect the old URL to the new canonical URL. A pure deletion without an alias keeps the app's hard-404 behavior.

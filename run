@@ -5,6 +5,7 @@ set -o pipefail
 
 LEFTHOOK_NPX_PACKAGE="${LEFTHOOK_NPX_PACKAGE:-lefthook@2.1.6}"
 DRAFT_SAFETY_FIXTURE_DIR=""
+CONTENT_VERDICT_ARTIFACT_DIR="${CONTENT_VERDICT_ARTIFACT_DIR:-.tmp/ci-artifacts/content-publication}"
 
 load_environment() {
     if [ -f .env ]; then
@@ -114,6 +115,11 @@ ci_validate() {
     local content_path
     local app_ref
     local content_ref
+    local draft_output
+    local validation_output
+    local validation_status
+    local publishable_count
+    local reason
 
     if [ -z "$app_path" ]; then
         echo "Usage: $0 ci:validate /path/to/personal-site"
@@ -138,13 +144,49 @@ ci_validate() {
 
     echo "Validating content commit $content_ref against personal-site commit $app_ref"
 
-    check_unencrypted_drafts
+    if ! draft_output="$(check_unencrypted_drafts 2>&1)"; then
+        printf "%s\n" "$draft_output"
+        reason="$(first_nonempty_line "$draft_output")"
+        write_content_verdict "rejected" "rejected: ${reason}" "$reason"
+        return 1
+    fi
 
-    (
-        cd "$app_path"
-        ./run ci:setup-env
-        ./run ci:content-validate "$content_path"
-    )
+    set +o errexit
+    validation_output="$(
+        {
+            cd "$app_path"
+            ./run ci:setup-env
+            ./run ci:content-validate "$content_path"
+        } 2>&1
+    )"
+    validation_status=$?
+    set -o errexit
+
+    printf "%s\n" "$validation_output"
+
+    if [ "$validation_status" -ne 0 ]; then
+        reason="$(first_validation_error "$validation_output")"
+
+        if [ -n "$reason" ]; then
+            write_content_verdict "rejected" "rejected: ${reason}" "$reason"
+        else
+            write_content_verdict "failed" "failed: validation command did not complete" \
+                "Content validation exited ${validation_status} before returning an author-facing reason."
+        fi
+
+        return "$validation_status"
+    fi
+
+    publishable_count="$(changed_publishable_path_count)"
+
+    if [ "$publishable_count" -eq 0 ]; then
+        write_content_verdict "ignored" "ignored: no publishable content changed" \
+            "No changed Markdown files under notes/*/*.md or case-studies/*/*.md."
+    else
+        write_content_verdict "accepted" \
+            "would publish (${publishable_count} publishable file(s)); no live origin yet" \
+            "Validation passed. There is no live origin yet, so this does not claim the site updated."
+    fi
 }
 
 app_content_validate() {
@@ -320,6 +362,82 @@ ci_draft_safety() {
         "./run ci:content-validate direct app validator" \
         "$app_validator_message" \
         app_content_validate "$app_path"
+}
+
+changed_publishable_path_count() {
+    local range=${CONTENT_VALIDATE_DIFF_RANGE:-}
+
+    if [ -z "$range" ]; then
+        echo 1
+        return
+    fi
+
+    git diff --name-only --diff-filter=ACDMRT "$range" -- \
+        | publishable_paths \
+        | wc -l \
+        | tr -d " "
+}
+
+publishable_paths() {
+    local path
+
+    while IFS= read -r path; do
+        case "$path" in
+            notes/*/*.md | case-studies/*/*.md)
+                printf "%s\n" "$path"
+                ;;
+        esac
+    done
+}
+
+first_nonempty_line() {
+    printf "%s\n" "$1" | awk 'NF {print; exit}'
+}
+
+first_validation_error() {
+    printf "%s\n" "$1" | awk '/^- / {sub(/^- /, ""); print; exit}'
+}
+
+write_content_verdict() {
+    local verdict=$1
+    local description=$2
+    local reason=$3
+    local status_description
+    local summary_file
+
+    mkdir -p "$CONTENT_VERDICT_ARTIFACT_DIR"
+
+    status_description="$(short_status_description "$description")"
+
+    printf "%s\n" "$verdict" > "$CONTENT_VERDICT_ARTIFACT_DIR/verdict.txt"
+    printf "%s\n" "$status_description" > "$CONTENT_VERDICT_ARTIFACT_DIR/description.txt"
+    printf "%s\n" "$reason" > "$CONTENT_VERDICT_ARTIFACT_DIR/reason.txt"
+
+    summary_file="$CONTENT_VERDICT_ARTIFACT_DIR/summary.md"
+
+    {
+        printf "%s\n" "## Content validation verdict"
+        printf "%s\n" ""
+        printf "%s\n" "- Verdict: \`${verdict}\`"
+        printf "%s\n" "- Summary: ${description}"
+        printf "%s\n" "- Status description: ${status_description}"
+        printf "%s\n" "- Reason: ${reason}"
+    } > "$summary_file"
+
+    if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+        cat "$summary_file" >> "$GITHUB_STEP_SUMMARY"
+    fi
+}
+
+short_status_description() {
+    local description=$1
+
+    if [ "${#description}" -le 140 ]; then
+        printf "%s\n" "$description"
+        return
+    fi
+
+    printf "%.137s...\n" "$description"
 }
 
 write_plaintext_draft_fixture() {
