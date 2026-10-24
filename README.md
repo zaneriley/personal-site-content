@@ -1,6 +1,6 @@
-# Case Studies and Notes for Zane Riley's Product Design Portfolio
+# Work and Notes for Zane Riley's Product Design Portfolio
 
-This repository contains the case studies and notes for my product design portfolio. It's a companion to my [main portfolio repository](https://github.com/zaneriley/personal-site), which houses the actual website code, and [the gitops infra](https://github.com/zaneriley/personal-site-infra) that deploys it.
+This repository contains the projects and notes for my product design portfolio. It's a companion to my [main portfolio repository](https://github.com/zaneriley/personal-site), which houses the actual website code, and [the gitops infra](https://github.com/zaneriley/personal-site-infra) that deploys it.
 
 This is to keep my content separate from the application code. In the past, updating my portfolio has a huge pain because it required extracting old content and integrating it into the new design. I hope to keep and preserve published content here, separate from the actual display of the content. 
 
@@ -13,7 +13,7 @@ This is to keep my content separate from the application code. In the past, upda
 
 ## Content Structure
 
-- `/case-studies`: Markdown for each case study
+- `/work`: Markdown for each project
 - `/notes`: Markdown for other writings
 
 ## Usage
@@ -75,7 +75,7 @@ The `Content publication verdict` status is the author-facing summary:
 
 ## Renames
 
-When renaming a published note or case study, add the old slug to the new file's `aliases:` frontmatter. The portfolio app uses that explicit signal to 301-redirect the old URL to the new canonical URL. A pure deletion without an alias keeps the app's hard-404 behavior.
+When renaming a published note or project, add the old slug to the new file's `aliases:` frontmatter. The portfolio app uses that explicit signal to 301-redirect the old URL to the new canonical URL. A pure deletion without an alias keeps the app's hard-404 behavior.
 
 Alias conflicts fail validation. Two live files of the same content type cannot claim the same alias, and an alias cannot conflict with another live canonical slug.
 
