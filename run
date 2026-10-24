@@ -181,7 +181,7 @@ ci_validate() {
 
     if [ "$publishable_count" -eq 0 ]; then
         write_content_verdict "ignored" "ignored: no publishable content changed" \
-            "No changed Markdown files under notes/*/*.md or case-studies/*/*.md."
+            "No changed Markdown files under notes/*/*.md or work/*/*.md."
     else
         write_content_verdict "accepted" \
             "would publish (${publishable_count} publishable file(s)); no live origin yet" \
@@ -383,7 +383,7 @@ publishable_paths() {
 
     while IFS= read -r path; do
         case "$path" in
-            notes/*/*.md | case-studies/*/*.md)
+            notes/*/*.md | work/*/*.md)
                 printf "%s\n" "$path"
                 ;;
         esac
